@@ -1,0 +1,22 @@
+# Rustfmt configuration for Monad
+# https://rust-lang.github.io/rustfmt/
+
+edition = "2024"
+
+# Line width
+max_width = 100
+use_small_heuristics = "Default"
+
+# Imports (stable options)
+reorder_imports = true
+reorder_modules = true
+
+# Functions and control flow
+fn_params_layout = "Tall"
+use_field_init_shorthand = true
+use_try_shorthand = true
+
+# Formatting style
+newline_style = "Unix"
+tab_spaces = 4
+hard_tabs = false
