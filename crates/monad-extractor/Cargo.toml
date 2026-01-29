@@ -1,0 +1,18 @@
+[package]
+name = "monad-extractor"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "YouTube audio extraction for Monad using yt-dlp"
+
+[lints]
+workspace = true
+
+[dependencies]
+monad-core.workspace = true
+tracing.workspace = true
+directories.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
