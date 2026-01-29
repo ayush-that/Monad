@@ -1,0 +1,29 @@
+[package]
+name = "monad-audio"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "High-performance audio playback engine for Monad"
+
+[lints]
+workspace = true
+
+[dependencies]
+monad-core.workspace = true
+
+tokio.workspace = true
+symphonia.workspace = true
+cpal.workspace = true
+rubato.workspace = true
+reqwest.workspace = true
+ureq.workspace = true
+bytes.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+directories.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
