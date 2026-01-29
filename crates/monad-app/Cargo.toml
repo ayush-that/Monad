@@ -1,0 +1,35 @@
+[package]
+name = "monad-app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Monad - The fastest YouTube Music client"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "monad"
+path = "src/main.rs"
+
+[dependencies]
+monad-core.workspace = true
+monad-innertube.workspace = true
+monad-audio.workspace = true
+monad-extractor.workspace = true
+monad-cache.workspace = true
+
+dioxus.workspace = true
+tokio.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+directories.workspace = true
+anyhow.workspace = true
+image.workspace = true
+battery.workspace = true
+
+[dev-dependencies]

@@ -1,0 +1,18 @@
+[application]
+name = "Monad"
+default_platform = "desktop"
+
+[bundle]
+name = "Monad"
+identifier = "com.monad.app"
+publisher = "Monad"
+icon = ["assets/icons/icon.icns", "assets/icons/icon.png"]
+
+[bundle.macos]
+icon = "assets/icons/icon.icns"
+
+[bundle.windows]
+icon = "assets/icons/icon.png"
+
+[bundle.linux]
+icon = "assets/icons/icon.png"
