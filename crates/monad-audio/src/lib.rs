@@ -15,3 +15,4 @@ pub mod output;
 pub mod resample;
 
 pub use engine::{AudioEngine, EngineCommand, EngineEvent, PlaybackState};
+pub use monad_core::StreamChunk;

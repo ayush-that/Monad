@@ -1,14 +1,15 @@
 //! Audio playback engine coordinating decode, resample, and output.
 
 use crate::buffer::{shared_ring_buffer, SharedRingBuffer};
-use crate::ffmpeg_decode::FfmpegDecoder;
+use crate::ffmpeg_decode::{FfmpegDecoder, StreamingFfmpegDecoder};
 use crate::output::AudioOutput;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use monad_core::{Error, Result};
+use monad_core::{Error, Result, StreamChunk};
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
 /// Size of the ring buffer in samples (about 2 seconds at 48kHz stereo).
@@ -28,7 +29,6 @@ pub enum PlaybackState {
 }
 
 /// Commands to control the audio engine.
-#[derive(Debug, Clone)]
 pub enum EngineCommand {
     /// Play the current track.
     Play,
@@ -44,8 +44,26 @@ pub enum EngineCommand {
     LoadUrl(String, Option<HashMap<String, String>>),
     /// Load audio data directly.
     LoadData(Vec<u8>, Option<String>),
+    /// Load audio from a streaming source (enables playback before download completes).
+    LoadStreaming(mpsc::Receiver<StreamChunk>),
     /// Shutdown the engine.
     Shutdown,
+}
+
+impl std::fmt::Debug for EngineCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Play => write!(f, "Play"),
+            Self::Pause => write!(f, "Pause"),
+            Self::Stop => write!(f, "Stop"),
+            Self::Seek(pos) => write!(f, "Seek({pos})"),
+            Self::SetVolume(vol) => write!(f, "SetVolume({vol})"),
+            Self::LoadUrl(url, _) => write!(f, "LoadUrl({url})"),
+            Self::LoadData(data, mime) => write!(f, "LoadData({} bytes, {:?})", data.len(), mime),
+            Self::LoadStreaming(_) => write!(f, "LoadStreaming(...)"),
+            Self::Shutdown => write!(f, "Shutdown"),
+        }
+    }
 }
 
 /// Events emitted by the audio engine.
@@ -65,6 +83,14 @@ pub enum EngineEvent {
     PlaybackFinished,
     /// Error occurred.
     Error(String),
+    /// Download progress for streaming (bytes downloaded).
+    DownloadProgress(u64),
+    /// Stream is buffering (waiting for more data).
+    StreamBuffering,
+    /// Stream buffer is healthy (enough data to play).
+    StreamBufferHealthy,
+    /// Stream download completed (seeking now enabled).
+    StreamDownloadComplete,
 }
 
 /// High-performance audio playback engine.
@@ -263,6 +289,9 @@ impl Default for AudioEngine {
     }
 }
 
+/// Streaming buffer threshold - 5 seconds at 48kHz stereo (480,000 samples).
+const STREAMING_BUFFER_THRESHOLD: usize = 48000 * 2 * 5;
+
 /// Internal worker that runs the audio processing loop.
 struct EngineWorker {
     command_rx: Receiver<EngineCommand>,
@@ -282,11 +311,25 @@ struct EngineWorker {
     decoder: Option<FfmpegDecoder>,
     /// Samples written since start (for position tracking).
     samples_written: u64,
+    /// Streaming decoder for live downloads.
+    streaming_decoder: Option<StreamingFfmpegDecoder>,
+    /// Receiver for streaming chunks from extractor.
+    stream_rx: Option<mpsc::Receiver<StreamChunk>>,
+    /// Total bytes downloaded during streaming.
+    bytes_downloaded: u64,
+    /// Last reported download progress (for threshold-based reporting).
+    last_progress_reported: u64,
+    /// Whether the stream download is complete.
+    stream_download_complete: bool,
+    /// Whether we're in streaming mode.
+    is_streaming: bool,
+    /// All data accumulated during streaming (for caching and seeking after complete).
+    streaming_data: Vec<u8>,
 }
 
 impl EngineWorker {
     #[allow(clippy::too_many_arguments)]
-    const fn new(
+    fn new(
         command_rx: Receiver<EngineCommand>,
         event_tx: Sender<EngineEvent>,
         state: Arc<RwLock<PlaybackState>>,
@@ -311,6 +354,13 @@ impl EngineWorker {
             output_channels,
             decoder: None,
             samples_written: 0,
+            streaming_decoder: None,
+            stream_rx: None,
+            bytes_downloaded: 0,
+            last_progress_reported: 0,
+            stream_download_complete: false,
+            is_streaming: false,
+            streaming_data: Vec::new(),
         }
     }
 
@@ -321,8 +371,12 @@ impl EngineWorker {
         let position_update_interval = Duration::from_millis(100);
 
         loop {
-            // Check for commands (non-blocking when playing)
-            let command = if *self.state.read() == PlaybackState::Playing {
+            // Check for commands (non-blocking when playing or streaming)
+            let is_active = *self.state.read() == PlaybackState::Playing
+                || *self.state.read() == PlaybackState::Buffering
+                || self.is_streaming;
+
+            let command = if is_active {
                 match self.command_rx.try_recv() {
                     Ok(cmd) => Some(cmd),
                     Err(TryRecvError::Empty) => None,
@@ -351,9 +405,18 @@ impl EngineWorker {
                 self.handle_command(cmd);
             }
 
+            // Process streaming if active
+            if self.is_streaming {
+                self.process_streaming();
+            }
+
             // Process audio if playing
             if *self.state.read() == PlaybackState::Playing {
-                self.process_audio();
+                if self.is_streaming {
+                    self.process_streaming_audio();
+                } else {
+                    self.process_audio();
+                }
 
                 // Update position periodically
                 if last_position_update.elapsed() >= position_update_interval {
@@ -402,6 +465,9 @@ impl EngineWorker {
             }
             EngineCommand::LoadData(data, mime_hint) => {
                 self.load_data(data, mime_hint.as_deref());
+            }
+            EngineCommand::LoadStreaming(rx) => {
+                self.load_streaming(rx);
             }
             EngineCommand::Shutdown => {
                 // Handled in the main loop
@@ -576,6 +642,40 @@ impl EngineWorker {
     fn seek_to(&mut self, position_secs: f64) {
         debug!("Seeking to {:.2} seconds", position_secs);
 
+        // Disable seeking during streaming download
+        if self.is_streaming && !self.stream_download_complete {
+            warn!("Seeking disabled during streaming download");
+            let _ = self.event_tx.send(EngineEvent::Error(
+                "Seeking disabled during download".to_string(),
+            ));
+            return;
+        }
+
+        // If streaming is complete, switch to regular decoder for seeking
+        if self.is_streaming && self.stream_download_complete && !self.streaming_data.is_empty() {
+            info!("Stream complete, switching to regular decoder for seek");
+            self.streaming_decoder = None;
+            self.is_streaming = false;
+
+            // Create regular decoder from accumulated data
+            match FfmpegDecoder::from_bytes(std::mem::take(&mut self.streaming_data), None) {
+                Ok(decoder) => {
+                    if let Some(dur) = decoder.duration() {
+                        *self.duration.write() = Some(dur);
+                        let _ = self.event_tx.send(EngineEvent::DurationUpdate(dur));
+                    }
+                    self.decoder = Some(decoder);
+                }
+                Err(e) => {
+                    error!("Failed to create decoder from streaming data: {e}");
+                    let _ = self
+                        .event_tx
+                        .send(EngineEvent::Error(format!("Seek failed: {e}")));
+                    return;
+                }
+            }
+        }
+
         if let Some(decoder) = &mut self.decoder {
             // Clear buffer
             self.ring_buffer.clear();
@@ -617,6 +717,213 @@ impl EngineWorker {
         let _ = self
             .event_tx
             .send(EngineEvent::PositionUpdate(position_secs));
+    }
+
+    /// Load audio from a streaming source.
+    fn load_streaming(&mut self, rx: mpsc::Receiver<StreamChunk>) {
+        info!("Loading streaming audio");
+        self.set_state(PlaybackState::Buffering);
+        let _ = self.event_tx.send(EngineEvent::BufferingProgress(0.0));
+
+        // Reset all state
+        self.ring_buffer.clear();
+        self.samples_written = 0;
+        self.decoder = None;
+        self.streaming_decoder = None;
+        self.stream_rx = None;
+        self.bytes_downloaded = 0;
+        self.last_progress_reported = 0;
+        self.stream_download_complete = false;
+        self.is_streaming = true;
+        self.streaming_data.clear();
+        *self.position.write() = 0.0;
+        *self.duration.write() = None;
+
+        // Create streaming decoder
+        match StreamingFfmpegDecoder::new() {
+            Ok(decoder) => {
+                self.streaming_decoder = Some(decoder);
+                self.stream_rx = Some(rx);
+                debug!("Streaming decoder initialized");
+            }
+            Err(e) => {
+                error!("Failed to create streaming decoder: {e}");
+                let _ = self
+                    .event_tx
+                    .send(EngineEvent::Error(format!("Failed to create decoder: {e}")));
+                self.set_state(PlaybackState::Stopped);
+                self.is_streaming = false;
+            }
+        }
+    }
+
+    /// Process incoming streaming data and feed to decoder.
+    fn process_streaming(&mut self) {
+        // Collect chunks first to avoid borrow conflicts
+        let mut chunks_to_process = Vec::new();
+        let mut channel_disconnected = false;
+
+        if let Some(ref mut rx) = self.stream_rx {
+            // Try to receive multiple chunks per iteration for efficiency
+            for _ in 0..16 {
+                match rx.try_recv() {
+                    Ok(chunk) => chunks_to_process.push(chunk),
+                    Err(mpsc::error::TryRecvError::Empty) => break,
+                    Err(mpsc::error::TryRecvError::Disconnected) => {
+                        channel_disconnected = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Process collected chunks
+        for chunk in chunks_to_process {
+            match chunk {
+                StreamChunk::Data(data) => {
+                    self.bytes_downloaded += data.len() as u64;
+                    self.streaming_data.extend_from_slice(&data);
+
+                    // Feed to streaming decoder
+                    if let Some(ref decoder) = self.streaming_decoder {
+                        if let Err(e) = decoder.feed(data) {
+                            warn!("Error feeding decoder: {e}");
+                        }
+                    }
+
+                    // Report download progress using threshold-based approach (every 128KB)
+                    if self.bytes_downloaded >= self.last_progress_reported + 128 * 1024 {
+                        self.last_progress_reported = self.bytes_downloaded;
+                        let _ = self
+                            .event_tx
+                            .send(EngineEvent::DownloadProgress(self.bytes_downloaded));
+                    }
+                }
+                StreamChunk::Complete => {
+                    info!("Stream download complete: {} bytes", self.bytes_downloaded);
+                    self.stream_download_complete = true;
+
+                    // Signal EOF to decoder
+                    if let Some(ref mut decoder) = self.streaming_decoder {
+                        decoder.finish_input();
+                    }
+
+                    let _ = self.event_tx.send(EngineEvent::StreamDownloadComplete);
+                }
+                StreamChunk::Error(err) => {
+                    error!("Stream error: {err}");
+                    let _ = self.event_tx.send(EngineEvent::Error(err));
+
+                    // If we have enough buffered data, continue with what we have
+                    if self.ring_buffer.available() < MIN_BUFFER_FILL {
+                        self.set_state(PlaybackState::Stopped);
+                        self.is_streaming = false;
+                    }
+                }
+            }
+        }
+
+        // Handle channel disconnection
+        if channel_disconnected {
+            debug!("Stream channel disconnected");
+            if !self.stream_download_complete {
+                self.stream_download_complete = true;
+                if let Some(ref mut decoder) = self.streaming_decoder {
+                    decoder.finish_input();
+                }
+            }
+        }
+
+        // Read decoded PCM from streaming decoder and fill buffer
+        if let Some(ref mut decoder) = self.streaming_decoder {
+            while self.ring_buffer.free() >= 4096 {
+                if let Some(samples) = decoder.try_decode_next() {
+                    if !samples.is_empty() {
+                        let written = self.ring_buffer.write(&samples);
+                        self.samples_written += written as u64;
+                        trace!("Streaming: wrote {} samples to buffer", written);
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Check if we should start playback
+        let current_state = *self.state.read();
+        if current_state == PlaybackState::Buffering {
+            let buffer_fill = self.ring_buffer.available();
+
+            // Start playback when we have enough buffer OR download is complete
+            if buffer_fill >= STREAMING_BUFFER_THRESHOLD || self.stream_download_complete {
+                info!(
+                    "Starting streaming playback: {} samples buffered",
+                    buffer_fill
+                );
+                let _ = self.event_tx.send(EngineEvent::StreamBufferHealthy);
+                let _ = self.event_tx.send(EngineEvent::TrackLoaded);
+                self.set_state(PlaybackState::Stopped);
+            } else {
+                // Report buffering progress
+                #[allow(clippy::cast_precision_loss)]
+                let progress = buffer_fill as f32 / STREAMING_BUFFER_THRESHOLD as f32;
+                let _ = self
+                    .event_tx
+                    .send(EngineEvent::BufferingProgress(progress.min(1.0)));
+            }
+        }
+
+        // Check if streaming is complete
+        if self.stream_download_complete {
+            if let Some(ref decoder) = self.streaming_decoder {
+                if decoder.is_complete() && self.ring_buffer.is_empty() {
+                    // All data has been processed
+                    if *self.state.read() == PlaybackState::Playing {
+                        info!("Streaming playback finished");
+                        self.set_state(PlaybackState::Stopped);
+                        let _ = self.event_tx.send(EngineEvent::PlaybackFinished);
+                    }
+                    self.is_streaming = false;
+                }
+            }
+        }
+    }
+
+    /// Process audio during streaming playback.
+    fn process_streaming_audio(&mut self) {
+        // Read more decoded samples from streaming decoder
+        if let Some(ref mut decoder) = self.streaming_decoder {
+            while self.ring_buffer.free() >= 2048 {
+                if let Some(samples) = decoder.try_decode_next() {
+                    if !samples.is_empty() {
+                        let written = self.ring_buffer.write(&samples);
+                        self.samples_written += written as u64;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Check for buffer underrun
+        if self.ring_buffer.available() < MIN_BUFFER_FILL && !self.stream_download_complete {
+            // Need to rebuffer
+            info!("Buffer underrun during streaming, rebuffering...");
+            let _ = self.event_tx.send(EngineEvent::StreamBuffering);
+            self.set_state(PlaybackState::Buffering);
+        }
+
+        // Check for end of stream
+        if self.stream_download_complete {
+            if let Some(ref decoder) = self.streaming_decoder {
+                if decoder.is_complete() && self.ring_buffer.is_empty() {
+                    info!("Streaming playback finished");
+                    self.set_state(PlaybackState::Stopped);
+                    let _ = self.event_tx.send(EngineEvent::PlaybackFinished);
+                    self.is_streaming = false;
+                }
+            }
+        }
     }
 
     fn set_state(&self, new_state: PlaybackState) {

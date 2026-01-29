@@ -8,6 +8,7 @@ use monad_core::Track;
 use monad_extractor::Extractor;
 use parking_lot::Mutex;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 /// Audio service that manages the connection between UI and audio playback.
@@ -42,23 +43,58 @@ impl AudioService {
     }
 
     /// Play a track by downloading audio with yt-dlp and sending to audio engine.
+    /// Uses streaming for uncached tracks (playback starts in ~5-10 seconds).
+    /// Uses instant path for cached tracks.
     pub async fn play_track(&self, track: &Track) {
         info!("Playing track: {} - {}", track.title, track.artist_name());
 
-        // Download audio directly using yt-dlp (avoids session-bound URL issues)
-        match self.extractor.extract(&track.id).await {
-            Ok(audio) => {
-                info!(
-                    "Downloaded audio for track: {} ({} bytes, {})",
-                    track.id,
-                    audio.data.len(),
-                    audio.mime_type
-                );
-                // Send raw audio data directly to the engine
-                self.send_command(EngineCommand::LoadData(audio.data, Some(audio.mime_type)));
+        // Check if track is cached for instant playback
+        if self.extractor.is_cached(&track.id) {
+            info!("Track {} is cached, using fast path", track.id);
+            match self.extractor.extract(&track.id).await {
+                Ok(audio) => {
+                    info!(
+                        "Loaded cached audio for track: {} ({} bytes, {})",
+                        track.id,
+                        audio.data.len(),
+                        audio.mime_type
+                    );
+                    self.send_command(EngineCommand::LoadData(audio.data, Some(audio.mime_type)));
+                }
+                Err(e) => {
+                    error!("Failed to load cached audio for track {}: {}", track.id, e);
+                }
             }
-            Err(e) => {
-                error!("Failed to download audio for track {}: {}", track.id, e);
+        } else {
+            info!("Track {} not cached, using streaming extraction", track.id);
+
+            // Use streaming extraction for uncached tracks
+            match self.extractor.extract_streaming(&track.id) {
+                Ok(mut extraction) => {
+                    // Create a channel to bridge extractor chunks to engine
+                    let (engine_tx, engine_rx) = mpsc::channel(64);
+
+                    // Send streaming command to engine
+                    self.send_command(EngineCommand::LoadStreaming(engine_rx));
+
+                    // Spawn task to forward chunks from extractor to engine
+                    // Since both use the same StreamChunk type, we can forward directly
+                    tokio::spawn(async move {
+                        while let Some(chunk) = extraction.rx.recv().await {
+                            if engine_tx.send(chunk).await.is_err() {
+                                debug!("Engine receiver dropped, stopping extraction forwarding");
+                                extraction.abort();
+                                break;
+                            }
+                        }
+                    });
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to start streaming extraction for track {}: {}",
+                        track.id, e
+                    );
+                }
             }
         }
     }
@@ -159,6 +195,19 @@ pub fn use_audio_event_sync(audio: Signal<AudioService>, app_state: AppState) {
                     }
                     EngineEvent::Error(err) => {
                         error!("Playback error: {err}");
+                    }
+                    EngineEvent::DownloadProgress(bytes) => {
+                        debug!("Download progress: {} KB", bytes / 1024);
+                    }
+                    EngineEvent::StreamBuffering => {
+                        debug!("Stream rebuffering");
+                        *player_status.write() = PlaybackStatus::Buffering;
+                    }
+                    EngineEvent::StreamBufferHealthy => {
+                        debug!("Stream buffer healthy");
+                    }
+                    EngineEvent::StreamDownloadComplete => {
+                        info!("Stream download complete, seeking now enabled");
                     }
                 }
             }

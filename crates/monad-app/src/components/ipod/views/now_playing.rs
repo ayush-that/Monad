@@ -1,7 +1,7 @@
 //! Now Playing view for iPod.
 
-use dioxus::prelude::*;
 use dioxus::document::eval;
+use dioxus::prelude::*;
 use monad_lyrics::{Lyrics, LyricsClient};
 use tracing::{debug, info};
 

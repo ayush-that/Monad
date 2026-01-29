@@ -36,7 +36,6 @@ impl BatteryState {
             info: Signal::new(initial_info),
         }
     }
-
 }
 
 impl Default for BatteryState {

@@ -1,8 +1,13 @@
 //! Search view for iPod.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
 use dioxus::prelude::*;
 use monad_core::Track;
 use monad_innertube::{InnerTubeClient, SearchFilter, SearchResults};
+use tokio::time::sleep;
 use tracing::info;
 
 use crate::services::AudioService;
@@ -14,9 +19,10 @@ use crate::state::AppState;
 #[component]
 pub fn SearchView() -> Element {
     let mut query = use_signal(String::new);
-    let mut results = use_signal(SearchResults::default);
-    let mut loading = use_signal(|| false);
-    let mut error = use_signal(|| Option::<String>::None);
+    let results = use_signal(SearchResults::default);
+    let loading = use_signal(|| false);
+    let error = use_signal(|| Option::<String>::None);
+    let search_id = use_signal(|| Arc::new(AtomicUsize::new(0)));
 
     rsx! {
         div { class: "ipod-search",
@@ -28,29 +34,51 @@ pub fn SearchView() -> Element {
                     placeholder: "Search...",
                     value: "{query}",
                     oninput: move |evt| {
-                        query.set(evt.value());
-                    },
-                    onkeydown: move |evt| {
-                        if evt.key() == Key::Enter {
-                            let q = query.read().clone();
-                            if !q.is_empty() {
-                                spawn(async move {
-                                    *loading.write() = true;
-                                    *error.write() = None;
+                        let new_query = evt.value();
+                        query.set(new_query.clone());
 
-                                    match perform_search(&q).await {
-                                        Ok(search_results) => {
-                                            *results.write() = search_results;
-                                        }
-                                        Err(e) => {
-                                            *error.write() = Some(e.to_string());
-                                        }
-                                    }
+                        let current_id = search_id.read().load(Ordering::SeqCst);
+                        // Signals are Copy in Dioxus 0.6
+                        let mut search_id = search_id;
+                        let mut results = results;
+                        let mut loading = loading;
+                        let mut error = error;
 
-                                    *loading.write() = false;
-                                });
+                        spawn(async move {
+                            let task_id = current_id + 1;
+                            search_id.write().store(task_id, Ordering::SeqCst);
+
+                            sleep(Duration::from_millis(300)).await;
+
+                            if search_id.read().load(Ordering::SeqCst) != task_id {
+                                return;
                             }
-                        }
+
+                            if new_query.is_empty() {
+                                *results.write() = SearchResults::default();
+                                *loading.write() = false;
+                                *error.write() = None;
+                                return;
+                            }
+
+                            *loading.write() = true;
+                            *error.write() = None;
+
+                            match perform_search(&new_query).await {
+                                Ok(search_results) => {
+                                    if search_id.read().load(Ordering::SeqCst) == task_id {
+                                        *results.write() = search_results;
+                                    }
+                                }
+                                Err(e) => {
+                                    if search_id.read().load(Ordering::SeqCst) == task_id {
+                                        *error.write() = Some(e.to_string());
+                                    }
+                                }
+                            }
+
+                            *loading.write() = false;
+                        });
                     },
                 }
             }

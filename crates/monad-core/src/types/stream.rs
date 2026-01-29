@@ -5,6 +5,17 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Chunk of streaming audio data used for streaming playback.
+#[derive(Debug, Clone)]
+pub enum StreamChunk {
+    /// Audio data chunk (compressed audio bytes).
+    Data(Vec<u8>),
+    /// Download completed successfully.
+    Complete,
+    /// Error occurred during download.
+    Error(String),
+}
+
 /// Information about an audio stream.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StreamInfo {

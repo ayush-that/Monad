@@ -54,4 +54,3 @@ fn SettingsThemeItem(theme: ColorTheme, is_current: bool) -> Element {
         }
     }
 }
-

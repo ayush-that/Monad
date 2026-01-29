@@ -14,5 +14,5 @@ pub use common::*;
 pub use playlist::Playlist;
 pub use playlist::{PlaylistAuthor, PlaylistPrivacy};
 pub use queue::{Queue, QueueItem, QueueSource, RepeatMode};
-pub use stream::{AudioFormat, AudioQuality, StreamCollection, StreamInfo};
+pub use stream::{AudioFormat, AudioQuality, StreamChunk, StreamCollection, StreamInfo};
 pub use track::{Track, TrackAlbum, TrackArtist};

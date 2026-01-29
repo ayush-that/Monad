@@ -13,6 +13,7 @@ workspace = true
 monad-core.workspace = true
 tracing.workspace = true
 directories.workspace = true
+tokio = { workspace = true, features = ["io-util", "process", "sync"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
