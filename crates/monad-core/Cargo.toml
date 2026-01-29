@@ -1,0 +1,21 @@
+[package]
+name = "monad-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Core types, traits, and error handling for Monad"
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
