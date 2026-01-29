@@ -15,14 +15,14 @@ A desktop YouTube Music client built with Rust, featuring an iPod-inspired inter
 
 Monad is organized as a Rust workspace with specialized crates:
 
-| Crate | Description |
-|-------|-------------|
-| `monad-core` | Core types, error handling, and domain models |
-| `monad-innertube` | YouTube Music API client (InnerTube protocol) |
-| `monad-audio` | Audio playback engine using symphonia and cpal |
-| `monad-extractor` | Media extraction utilities |
-| `monad-cache` | SQLite caching layer for offline support |
-| `monad-app` | Dioxus desktop GUI application |
+| Crate             | Description                                    |
+| ----------------- | ---------------------------------------------- |
+| `monad-core`      | Core types, error handling, and domain models  |
+| `monad-innertube` | YouTube Music API client (InnerTube protocol)  |
+| `monad-audio`     | Audio playback engine using symphonia and cpal |
+| `monad-extractor` | Media extraction utilities                     |
+| `monad-cache`     | SQLite caching layer for offline support       |
+| `monad-app`       | Dioxus desktop GUI application                 |
 
 ## Building
 
