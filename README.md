@@ -2,7 +2,7 @@
 
 A desktop YouTube Music client built with Rust, featuring an iPod-inspired interface.
 
-![Monad YouTube Music Player](https://placeholder.com/monad-screenshot.png)
+<img width="587" height="387" alt="image" src="https://github.com/user-attachments/assets/91ea4d06-492a-4820-ae32-5bcfe61b8db5" />
 
 ## Features
 
