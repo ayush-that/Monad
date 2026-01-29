@@ -6,6 +6,7 @@ members = [
     "crates/monad-audio",
     "crates/monad-extractor",
     "crates/monad-cache",
+    "crates/monad-lyrics",
     "crates/monad-app",
 ]
 
@@ -24,6 +25,7 @@ monad-innertube = { path = "crates/monad-innertube" }
 monad-audio = { path = "crates/monad-audio" }
 monad-extractor = { path = "crates/monad-extractor" }
 monad-cache = { path = "crates/monad-cache" }
+monad-lyrics = { path = "crates/monad-lyrics" }
 
 # GUI Framework (100% Rust)
 dioxus = { version = "0.6", features = ["desktop"] }
@@ -53,6 +55,9 @@ anyhow = "1.0"
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# XML parsing
+quick-xml = { version = "0.37", features = ["serialize"] }
 
 # Logging
 tracing = "0.1"

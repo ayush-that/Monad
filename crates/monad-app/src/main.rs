@@ -86,7 +86,7 @@ fn App() -> Element {
     use_context_provider(|| audio_service);
 
     // Set up audio event synchronization
-    use_audio_event_sync(audio_service, app_state.clone());
+    use_audio_event_sync(audio_service, app_state);
 
     rsx! {
         // Inject CSS

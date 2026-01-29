@@ -37,12 +37,6 @@ impl BatteryState {
         }
     }
 
-    /// Update the battery info from the system.
-    pub fn refresh(&mut self) {
-        if let Some(info) = get_battery_info() {
-            self.info.set(info);
-        }
-    }
 }
 
 impl Default for BatteryState {

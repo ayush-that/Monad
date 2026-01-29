@@ -19,6 +19,7 @@ monad-innertube.workspace = true
 monad-audio.workspace = true
 monad-extractor.workspace = true
 monad-cache.workspace = true
+monad-lyrics.workspace = true
 
 dioxus.workspace = true
 tokio.workspace = true

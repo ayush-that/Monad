@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use super::views::{ListView, MenuView, NowPlayingView, SearchView, SettingsView};
+use super::views::{MenuView, NowPlayingView, SearchView, SettingsView};
 use super::StatusBar;
 use crate::state::ipod::{IPodScreen, IPodState};
 
@@ -23,9 +23,7 @@ pub fn Screen() -> Element {
                 div { class: "ipod-screen__view",
                     match screen {
                         IPodScreen::NowPlaying => rsx! { NowPlayingView {} },
-                        IPodScreen::Menu | IPodScreen::MusicMenu => rsx! { MenuView {} },
-                        IPodScreen::Songs | IPodScreen::Artists |
-                        IPodScreen::Albums | IPodScreen::Playlists => rsx! { ListView {} },
+                        IPodScreen::Menu => rsx! { MenuView {} },
                         IPodScreen::Search => rsx! { SearchView {} },
                         IPodScreen::Settings => rsx! { SettingsView {} },
                     }

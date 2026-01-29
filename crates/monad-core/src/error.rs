@@ -22,6 +22,12 @@ pub enum Error {
     #[error("Failed to parse API response: {0}")]
     ParseError(String),
 
+    #[error("Parse error: {0}")]
+    Parse(String),
+
+    #[error("API error: {0}")]
+    Api(String),
+
     #[error("Content not available: {0}")]
     ContentNotAvailable(String),
 

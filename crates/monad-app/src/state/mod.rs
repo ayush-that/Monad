@@ -7,7 +7,7 @@ pub mod player;
 pub use player::PlayerState;
 
 use dioxus::prelude::*;
-use monad_core::{Queue, QueueItem, Track};
+use monad_core::Queue;
 
 /// Global application state.
 #[derive(Clone)]
@@ -24,21 +24,6 @@ impl AppState {
         Self {
             player: PlayerState::new(),
             queue: Signal::new(Queue::new()),
-        }
-    }
-
-    /// Add a track to the queue and optionally start playback.
-    pub fn play_track(&mut self, track: Track, play_now: bool) {
-        self.queue
-            .write()
-            .push(QueueItem::from_track(track.clone()));
-
-        if play_now {
-            // Jump to the newly added track
-            let idx = self.queue.read().len().saturating_sub(1);
-            self.queue.write().jump_to(idx);
-            self.player.set_track(Some(track));
-            self.player.play();
         }
     }
 

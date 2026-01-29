@@ -2,12 +2,9 @@
 
 use dioxus::prelude::*;
 
-use crate::services::AudioService;
-use crate::state::AppState;
 use crate::state::ipod::{ColorTheme, IPodState};
-use crate::state::player::RepeatMode;
 
-/// Settings view with theme and playback options.
+/// Settings view with theme options.
 #[component]
 pub fn SettingsView() -> Element {
     let ipod_state = use_context::<IPodState>();
@@ -29,22 +26,6 @@ pub fn SettingsView() -> Element {
                 }
             }
 
-            // Playback Section
-            div { class: "ipod-settings__section",
-                div { class: "ipod-settings__header", "Playback" }
-                div { class: "ipod-settings__list",
-                    ShuffleToggle {}
-                    RepeatToggle {}
-                }
-            }
-
-            // Volume Section
-            div { class: "ipod-settings__section",
-                div { class: "ipod-settings__header", "Volume" }
-                div { class: "ipod-settings__list",
-                    VolumeControl {}
-                }
-            }
         }
     }
 }
@@ -74,128 +55,3 @@ fn SettingsThemeItem(theme: ColorTheme, is_current: bool) -> Element {
     }
 }
 
-/// Shuffle toggle setting.
-#[component]
-fn ShuffleToggle() -> Element {
-    let mut app_state = use_context::<AppState>();
-    let shuffle = *app_state.player.shuffle.read();
-
-    rsx! {
-        div {
-            class: "ipod-settings__item",
-            onclick: move |_| {
-                app_state.player.toggle_shuffle();
-            },
-            div { class: "ipod-settings__item-content",
-                svg {
-                    width: "20",
-                    height: "20",
-                    view_box: "0 0 24 24",
-                    fill: if shuffle { "#4ade80" } else { "#666" },
-                    path {
-                        d: "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"
-                    }
-                }
-                span { class: "ipod-settings__item-label", "Shuffle" }
-            }
-            span { class: "ipod-settings__toggle-value",
-                if shuffle { "On" } else { "Off" }
-            }
-        }
-    }
-}
-
-/// Repeat mode toggle setting.
-#[component]
-fn RepeatToggle() -> Element {
-    let mut app_state = use_context::<AppState>();
-    let repeat = *app_state.player.repeat.read();
-
-    let repeat_text = match repeat {
-        RepeatMode::Off => "Off",
-        RepeatMode::All => "All",
-        RepeatMode::One => "One",
-    };
-
-    let icon_color = if repeat == RepeatMode::Off {
-        "#666"
-    } else {
-        "#4ade80"
-    };
-
-    rsx! {
-        div {
-            class: "ipod-settings__item",
-            onclick: move |_| {
-                app_state.player.cycle_repeat();
-            },
-            div { class: "ipod-settings__item-content",
-                svg {
-                    width: "20",
-                    height: "20",
-                    view_box: "0 0 24 24",
-                    fill: "{icon_color}",
-                    path {
-                        d: "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"
-                    }
-                }
-                span { class: "ipod-settings__item-label", "Repeat" }
-            }
-            span { class: "ipod-settings__toggle-value", "{repeat_text}" }
-        }
-    }
-}
-
-/// Volume control slider.
-#[component]
-fn VolumeControl() -> Element {
-    let app_state = use_context::<AppState>();
-    let audio = use_context::<Signal<AudioService>>();
-    let volume = *app_state.player.volume.read();
-
-    let volume_percent = (volume * 100.0) as i32;
-
-    let mut player_volume = app_state.player.volume;
-
-    rsx! {
-        div { class: "ipod-settings__volume-control",
-            // Volume slider
-            div { class: "ipod-settings__volume-slider",
-                // Decrease button
-                button {
-                    class: "ipod-settings__volume-btn",
-                    onclick: move |_| {
-                        let current = *player_volume.read();
-                        let new_vol = (current - 0.1).max(0.0);
-                        *player_volume.write() = new_vol;
-                        audio.read().set_volume(new_vol);
-                    },
-                    "−"
-                }
-
-                // Volume bar
-                div { class: "ipod-settings__volume-bar-container",
-                    div { class: "ipod-settings__volume-bar",
-                        div {
-                            class: "ipod-settings__volume-fill",
-                            style: "width: {volume * 100.0}%"
-                        }
-                    }
-                    span { class: "ipod-settings__volume-text", "{volume_percent}%" }
-                }
-
-                // Increase button
-                button {
-                    class: "ipod-settings__volume-btn",
-                    onclick: move |_| {
-                        let current = *player_volume.read();
-                        let new_vol = (current + 0.1).min(1.0);
-                        *player_volume.write() = new_vol;
-                        audio.read().set_volume(new_vol);
-                    },
-                    "+"
-                }
-            }
-        }
-    }
-}

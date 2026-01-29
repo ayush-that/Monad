@@ -80,9 +80,7 @@ fn PreviousButton() -> Element {
                             });
                         }
                     }
-                    IPodScreen::Menu | IPodScreen::MusicMenu |
-                    IPodScreen::Songs | IPodScreen::Artists |
-                    IPodScreen::Albums | IPodScreen::Playlists => {
+                    IPodScreen::Menu => {
                         // Move selection up
                         ipod_state.select_previous();
                     }
@@ -131,14 +129,9 @@ fn NextButton() -> Element {
                             });
                         }
                     }
-                    IPodScreen::Menu | IPodScreen::MusicMenu => {
+                    IPodScreen::Menu => {
                         // Move selection down
                         ipod_state.select_next(max_items);
-                    }
-                    IPodScreen::Songs | IPodScreen::Artists |
-                    IPodScreen::Albums | IPodScreen::Playlists => {
-                        // For list views, we'll use queue length later
-                        ipod_state.select_next(100);
                     }
                     _ => {}
                 }
@@ -245,12 +238,9 @@ fn SelectButton() -> Element {
                             }
                         }
                     }
-                    IPodScreen::Menu | IPodScreen::MusicMenu => {
+                    IPodScreen::Menu => {
                         // Select menu item
                         ipod_state.select();
-                    }
-                    IPodScreen::Songs => {
-                        // Play selected song (will implement later)
                     }
                     _ => {}
                 }

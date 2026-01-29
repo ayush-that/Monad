@@ -1,16 +1,14 @@
 //! Audio service connecting UI to the audio engine.
 
-use std::sync::Arc;
-
+use crate::state::player::PlaybackStatus;
+use crate::state::AppState;
 use dioxus::prelude::*;
 use monad_audio::{AudioEngine, EngineCommand, EngineEvent, PlaybackState as EnginePlaybackState};
 use monad_core::Track;
 use monad_extractor::Extractor;
 use parking_lot::Mutex;
+use std::sync::Arc;
 use tracing::{debug, error, info, warn};
-
-use crate::state::player::PlaybackStatus;
-use crate::state::AppState;
 
 /// Audio service that manages the connection between UI and audio playback.
 #[derive(Clone)]
@@ -86,29 +84,9 @@ impl AudioService {
         self.send_command(EngineCommand::Pause);
     }
 
-    /// Stop playback.
-    pub fn stop(&self) {
-        self.send_command(EngineCommand::Stop);
-    }
-
-    /// Seek to position in seconds.
-    pub fn seek(&self, position: f64) {
-        self.send_command(EngineCommand::Seek(position));
-    }
-
-    /// Set volume (0.0 to 1.0).
-    pub fn set_volume(&self, volume: f32) {
-        self.send_command(EngineCommand::SetVolume(volume));
-    }
-
     /// Try to receive an event from the audio engine.
     pub fn try_recv_event(&self) -> Option<EngineEvent> {
         self.engine.lock().as_ref()?.try_recv_event()
-    }
-
-    /// Check if the audio engine is available.
-    pub fn is_available(&self) -> bool {
-        self.engine.lock().is_some()
     }
 }
 

@@ -550,6 +550,90 @@ input,
   }
 }
 
+/* Now Playing Content (clickable toggle area) */
+.ipod-now-playing__content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 50px; /* Leave room for info overlay */
+  z-index: 1;
+  cursor: pointer;
+}
+
+/* ========================================
+   Lyrics View
+   ======================================== */
+.ipod-lyrics {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px;
+}
+
+.ipod-lyrics--loading,
+.ipod-lyrics--error,
+.ipod-lyrics--empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.ipod-lyrics__message {
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Spacer to allow lines to be centered */
+.ipod-lyrics__spacer {
+  flex-shrink: 0;
+  height: 45%;
+}
+
+.ipod-lyrics::-webkit-scrollbar {
+  width: 3px;
+}
+
+.ipod-lyrics::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ipod-lyrics::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.ipod-lyrics__line {
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 6px 0;
+  color: rgba(255, 255, 255, 0.35);
+  transition: color 0.3s ease, transform 0.3s ease, font-size 0.3s ease;
+  user-select: none;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.ipod-lyrics__line--past {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.ipod-lyrics__line--current {
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  transform: scale(1.05);
+}
 
 /* ========================================
    Menu View

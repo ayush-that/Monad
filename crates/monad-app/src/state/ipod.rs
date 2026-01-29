@@ -15,7 +15,7 @@ pub enum ColorTheme {
 
 impl ColorTheme {
     /// Get all available themes.
-    pub fn all() -> &'static [ColorTheme] {
+    pub const fn all() -> &'static [ColorTheme] {
         &[
             ColorTheme::Silver,
             ColorTheme::Blue,
@@ -26,7 +26,7 @@ impl ColorTheme {
     }
 
     /// Get display name.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             ColorTheme::Silver => "Silver",
             ColorTheme::Blue => "Blue",
@@ -37,7 +37,7 @@ impl ColorTheme {
     }
 
     /// Get CSS class name for this theme.
-    pub fn css_class(&self) -> &'static str {
+    pub const fn css_class(self) -> &'static str {
         match self {
             ColorTheme::Silver => "theme-silver",
             ColorTheme::Blue => "theme-blue",
@@ -56,16 +56,6 @@ pub enum IPodScreen {
     NowPlaying,
     /// Main menu.
     Menu,
-    /// Music submenu.
-    MusicMenu,
-    /// Songs list.
-    Songs,
-    /// Artists list.
-    Artists,
-    /// Albums list.
-    Albums,
-    /// Playlists list.
-    Playlists,
     /// Search screen.
     Search,
     /// Settings screen.
@@ -81,7 +71,7 @@ pub struct MenuItem {
 
 impl IPodScreen {
     /// Get menu items for this screen.
-    pub fn menu_items(&self) -> Vec<MenuItem> {
+    pub fn menu_items(self) -> Vec<MenuItem> {
         match self {
             IPodScreen::Menu => vec![
                 MenuItem {
@@ -97,55 +87,17 @@ impl IPodScreen {
                     target: IPodScreen::Settings,
                 },
             ],
-            IPodScreen::MusicMenu => vec![
-                MenuItem {
-                    label: "Songs",
-                    target: IPodScreen::Songs,
-                },
-                MenuItem {
-                    label: "Artists",
-                    target: IPodScreen::Artists,
-                },
-                MenuItem {
-                    label: "Albums",
-                    target: IPodScreen::Albums,
-                },
-                MenuItem {
-                    label: "Playlists",
-                    target: IPodScreen::Playlists,
-                },
-            ],
             _ => vec![],
         }
     }
 
     /// Get the title for this screen.
-    pub fn title(&self) -> &'static str {
+    pub const fn title(self) -> &'static str {
         match self {
             IPodScreen::NowPlaying => "Now Playing",
             IPodScreen::Menu => "iPod",
-            IPodScreen::MusicMenu => "Music",
-            IPodScreen::Songs => "Songs",
-            IPodScreen::Artists => "Artists",
-            IPodScreen::Albums => "Albums",
-            IPodScreen::Playlists => "Playlists",
             IPodScreen::Search => "Search",
             IPodScreen::Settings => "Settings",
-        }
-    }
-
-    /// Get the parent screen for back navigation.
-    pub fn parent(&self) -> Option<IPodScreen> {
-        match self {
-            IPodScreen::NowPlaying => Some(IPodScreen::Menu),
-            IPodScreen::Menu => None,
-            IPodScreen::MusicMenu => Some(IPodScreen::Menu),
-            IPodScreen::Songs => Some(IPodScreen::MusicMenu),
-            IPodScreen::Artists => Some(IPodScreen::MusicMenu),
-            IPodScreen::Albums => Some(IPodScreen::MusicMenu),
-            IPodScreen::Playlists => Some(IPodScreen::MusicMenu),
-            IPodScreen::Search => Some(IPodScreen::Menu),
-            IPodScreen::Settings => Some(IPodScreen::Menu),
         }
     }
 }
@@ -172,11 +124,6 @@ impl IPodState {
             history: Signal::new(Vec::new()),
             theme: Signal::new(ColorTheme::default()),
         }
-    }
-
-    /// Set the color theme.
-    pub fn set_theme(&mut self, theme: ColorTheme) {
-        *self.theme.write() = theme;
     }
 
     /// Navigate to a screen.

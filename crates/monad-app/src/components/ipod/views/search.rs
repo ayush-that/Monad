@@ -28,7 +28,7 @@ pub fn SearchView() -> Element {
                     placeholder: "Search...",
                     value: "{query}",
                     oninput: move |evt| {
-                        query.set(evt.value().clone());
+                        query.set(evt.value());
                     },
                     onkeydown: move |evt| {
                         if evt.key() == Key::Enter {
@@ -148,7 +148,7 @@ pub fn SearchView() -> Element {
     }
 }
 
-/// Perform search using InnerTube.
+/// Perform search using `InnerTube`.
 async fn perform_search(query: &str) -> Result<SearchResults, monad_core::Error> {
     info!("Performing search for: {}", query);
     let client = InnerTubeClient::new()?;

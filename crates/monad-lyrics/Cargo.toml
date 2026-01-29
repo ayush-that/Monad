@@ -1,0 +1,22 @@
+[package]
+name = "monad-lyrics"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Lyrics fetching and parsing for Monad"
+
+[lints]
+workspace = true
+
+[dependencies]
+monad-core.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# XML parsing for TTML
+quick-xml.workspace = true
