@@ -180,6 +180,8 @@ input,
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  user-select: none;
+  -webkit-app-region: drag;
 }
 
 /* Radial shadow overlay at bottom (from Figma) */
@@ -413,6 +415,7 @@ input,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
 }
 
 .ipod-now-playing__artist {
@@ -425,6 +428,7 @@ input,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
 }
 
 .ipod-now-playing__position {
