@@ -9,7 +9,8 @@ use tracing::debug;
 /// Parse TTML lyrics into our Lyrics structure.
 pub fn parse_ttml(ttml: &str, artist: &str, song: &str) -> Result<Lyrics, Error> {
     let mut reader = Reader::from_str(ttml);
-    reader.config_mut().trim_text(true);
+    // Don't trim text - we need spaces between spans
+    reader.config_mut().trim_text(false);
 
     let mut lines = Vec::new();
     let mut duration = None;
@@ -65,11 +66,12 @@ pub fn parse_ttml(ttml: &str, artist: &str, song: &str) -> Result<Lyrics, Error>
             Ok(Event::Text(e)) => {
                 let text = e.unescape().unwrap_or_default().to_string();
                 if in_span {
-                    current_word.text = text;
+                    current_word.text.push_str(&text);
                 } else if let Some(ref mut line) = current_line {
-                    // Text directly in <p> without <span>
-                    if !text.trim().is_empty() {
-                        line.text.push_str(&text);
+                    // Text between spans (spaces) or directly in <p>
+                    // Only add if it contains a space (not just newlines/indentation)
+                    if text.contains(' ') {
+                        line.text.push(' ');
                     }
                 }
             }
@@ -82,10 +84,7 @@ pub fn parse_ttml(ttml: &str, artist: &str, song: &str) -> Result<Lyrics, Error>
                         in_span = false;
                         if let Some(ref mut line) = current_line {
                             if !current_word.text.is_empty() {
-                                // Add space between words if needed
-                                if !line.text.is_empty() && !line.text.ends_with(' ') {
-                                    line.text.push(' ');
-                                }
+                                // Don't add space - spaces come from text nodes between spans
                                 line.text.push_str(&current_word.text);
                                 line.words.push(LyricWord {
                                     text: current_word.text.clone(),
@@ -200,8 +199,7 @@ mod tests {
             <body dur="1:30.000">
                 <div>
                     <p begin="0.5" end="3.0">
-                        <span begin="0.5" end="1.0">Hello</span>
-                        <span begin="1.0" end="2.0">world</span>
+                        <span begin="0.5" end="1.0">Hello</span> <span begin="1.0" end="2.0">world</span>
                     </p>
                 </div>
             </body>
@@ -213,5 +211,25 @@ mod tests {
         assert_eq!(lyrics.lines[0].text, "Hello world");
         assert_eq!(lyrics.lines[0].words.len(), 2);
         assert_eq!(lyrics.lines[0].words[0].text, "Hello");
+    }
+
+    #[test]
+    fn test_parse_split_word() {
+        // Test case where a word is split across spans (like "bo" + "dy" = "body")
+        let ttml = r#"
+        <tt xmlns="http://www.w3.org/ns/ttml">
+            <body dur="1:00.000">
+                <div>
+                    <p begin="0.5" end="3.0">
+                        <span begin="0.5" end="0.8">I'm</span> <span begin="0.8" end="1.0">in</span> <span begin="1.0" end="1.2">love</span> <span begin="1.2" end="1.4">with</span> <span begin="1.4" end="1.6">your</span> <span begin="1.6" end="1.8">bo</span><span begin="1.8" end="2.0">dy</span>
+                    </p>
+                </div>
+            </body>
+        </tt>
+        "#;
+
+        let lyrics = parse_ttml(ttml, "Test Artist", "Test Song").unwrap();
+        assert_eq!(lyrics.lines.len(), 1);
+        assert_eq!(lyrics.lines[0].text, "I'm in love with your body");
     }
 }
