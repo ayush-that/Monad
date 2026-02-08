@@ -212,6 +212,7 @@ impl Extractor {
         // Build yt-dlp args
         let mut args = self.auth_method.to_args();
         args.extend([
+            "--quiet".to_string(),
             "--no-warnings".to_string(),
             "--no-progress".to_string(),
             "--js-runtimes".to_string(),
@@ -219,7 +220,7 @@ impl Extractor {
             "--remote-components".to_string(),
             "ejs:github".to_string(),
             "-f".to_string(),
-            "141/140/bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio".to_string(),
+            "bestaudio".to_string(),
             "-o".to_string(),
             "-".to_string(),
             url,
@@ -291,6 +292,7 @@ impl Extractor {
         // Build yt-dlp args
         let mut args = self.auth_method.to_args();
         args.extend([
+            "--quiet".to_string(),
             "--no-warnings".to_string(),
             "--no-progress".to_string(),
             "--js-runtimes".to_string(),
@@ -298,7 +300,7 @@ impl Extractor {
             "--remote-components".to_string(),
             "ejs:github".to_string(),
             "-f".to_string(),
-            "141/140/bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio".to_string(),
+            "bestaudio".to_string(),
             "-o".to_string(),
             "-".to_string(),
             url,
